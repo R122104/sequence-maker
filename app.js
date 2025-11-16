@@ -464,6 +464,27 @@ messageTextInput.addEventListener('keydown', (e) => {
 // 初期化
 setupDragAndDrop();
 
+// エディタトグル機能
+const toggleEditorBtn = document.getElementById('toggle-editor-btn');
+const mainElement = document.querySelector('main');
+
+toggleEditorBtn.addEventListener('click', () => {
+    editorPanel.classList.toggle('hidden');
+    mainElement.classList.toggle('editor-hidden');
+    
+    // ボタンのタイトルを変更
+    if (editorPanel.classList.contains('hidden')) {
+        toggleEditorBtn.title = 'エディタを表示';
+    } else {
+        toggleEditorBtn.title = 'エディタを非表示';
+    }
+    
+    // プレビューパネルのサイズ調整をトリガー
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 300);
+});
+
 // 初期描画（サンプルコードがあれば）
 const sampleCode = `sequenceDiagram
     participant A as 参加者A
