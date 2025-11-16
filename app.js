@@ -14,6 +14,23 @@ const diagramContainer = document.getElementById('diagram-container');
 const statusMessage = document.getElementById('status-message');
 const htmlDownloadTitle = document.getElementById('html-download-title');
 
+// 編集パネル要素
+const editPanel = document.getElementById('edit-panel');
+const editPanelTitle = document.getElementById('edit-panel-title');
+const editPanelClose = document.getElementById('edit-panel-close');
+const editParticipantForm = document.getElementById('edit-participant-form');
+const editMessageForm = document.getElementById('edit-message-form');
+const editParticipantId = document.getElementById('edit-participant-id');
+const editParticipantName = document.getElementById('edit-participant-name');
+const editParticipantUpdateBtn = document.getElementById('edit-participant-update-btn');
+const editParticipantDeleteBtn = document.getElementById('edit-participant-delete-btn');
+const editMessageFrom = document.getElementById('edit-message-from');
+const editMessageTo = document.getElementById('edit-message-to');
+const editMessageType = document.getElementById('edit-message-type');
+const editMessageText = document.getElementById('edit-message-text');
+const editMessageUpdateBtn = document.getElementById('edit-message-update-btn');
+const editMessageDeleteBtn = document.getElementById('edit-message-delete-btn');
+
 // ダイアログ要素
 const participantDialog = document.getElementById('participant-dialog');
 const messageDialog = document.getElementById('message-dialog');
@@ -37,6 +54,8 @@ const dragDropArea = document.querySelector('.drag-drop-area');
 // 状態管理
 let lastSuccessfulSvg = null;
 let currentMermaidCode = '';
+let parsedElements = { participants: [], messages: [] };
+let currentEditingElement = null;
 
 // ステータスメッセージ更新
 function updateStatus(message, type = 'info') {
@@ -60,10 +79,16 @@ async function renderDiagram() {
 
         // MermaidでSVGを生成
         const { svg } = await mermaid.render('diagram-svg', code);
-        
+
         // SVGをDOMに挿入
         diagramContainer.innerHTML = svg;
         lastSuccessfulSvg = svg;
+
+        // パース結果を更新
+        updateParsedElements();
+
+        // SVG要素にクリックイベントを追加
+        attachClickEventsToSvg();
 
         // ダウンロードボタンを有効化
         downloadPngBtn.disabled = false;
@@ -72,12 +97,242 @@ async function renderDiagram() {
     } catch (error) {
         console.error('Mermaid描画エラー:', error);
         updateStatus(`描画エラー: ${error.message}`, 'error');
-        
+
         // 最後に成功したSVGを再表示
         if (lastSuccessfulSvg) {
             diagramContainer.innerHTML = lastSuccessfulSvg;
         }
     }
+}
+
+// SVG要素にクリックイベントを追加
+function attachClickEventsToSvg() {
+    const svg = diagramContainer.querySelector('svg');
+    if (!svg) {
+        console.log('SVGが見つかりません');
+        return;
+    }
+
+    console.log('=== SVG構造調査 ===');
+    console.log('SVG要素:', svg);
+    console.log('パース済み参加者:', parsedElements.participants);
+    console.log('パース済みメッセージ:', parsedElements.messages);
+
+    // SVG内のすべてのg要素を取得してログ出力
+    const allGroups = svg.querySelectorAll('g');
+    console.log('SVG内の全g要素数:', allGroups.length);
+    allGroups.forEach((g, idx) => {
+        if (idx < 10) { // 最初の10個だけログ出力
+            console.log(`g[${idx}] class="${g.getAttribute('class')}" id="${g.getAttribute('id')}"`);
+        }
+    });
+
+    // 参加者ボックスを見つけてクリックイベントを追加
+    // 複数のセレクタを順番に試す
+    let actorGroups = [];
+
+    // パターン1: g.actor
+    actorGroups = svg.querySelectorAll('g.actor');
+    console.log('g.actor で見つかった要素数:', actorGroups.length);
+
+    // パターン2: rect.actor の親要素
+    if (actorGroups.length === 0) {
+        const actorRects = svg.querySelectorAll('rect.actor');
+        console.log('rect.actor で見つかった要素数:', actorRects.length);
+        actorGroups = Array.from(actorRects).map(rect => rect.parentElement);
+        console.log('rect.actorの親要素数:', actorGroups.length);
+    }
+
+    // パターン3: text要素のtspan内容から参加者名を検索
+    if (actorGroups.length === 0) {
+        const allTexts = svg.querySelectorAll('text');
+        console.log('text要素数:', allTexts.length);
+        const participantTexts = [];
+        allTexts.forEach(text => {
+            const content = text.textContent.trim();
+            console.log('text内容:', content);
+            // 参加者名と一致するテキストを探す
+            const matchingParticipant = parsedElements.participants.find(p =>
+                content === p.name || content === p.id
+            );
+            if (matchingParticipant) {
+                console.log('参加者テキスト発見:', content, matchingParticipant);
+                // text要素の祖父母要素（通常はグループ）を取得
+                let parent = text.parentElement;
+                while (parent && parent.tagName.toLowerCase() !== 'g') {
+                    parent = parent.parentElement;
+                }
+                if (parent && parent.tagName.toLowerCase() === 'g') {
+                    participantTexts.push(parent);
+                }
+            }
+        });
+        if (participantTexts.length > 0) {
+            actorGroups = participantTexts;
+            console.log('テキストから見つかった参加者グループ数:', actorGroups.length);
+        }
+    }
+
+    // クリックイベントを追加
+    if (actorGroups.length > 0) {
+        actorGroups.forEach((group, index) => {
+            console.log(`参加者グループ ${index} にイベント追加:`, group);
+            if (index < parsedElements.participants.length) {
+                const participant = parsedElements.participants[index];
+                group.classList.add('clickable-element');
+                group.style.cursor = 'pointer';
+
+                group.addEventListener('click', (e) => {
+                    console.log('参加者がクリックされました:', participant);
+                    e.stopPropagation();
+                    showEditParticipantPanel(participant);
+                });
+            }
+        });
+    } else {
+        console.warn('参加者グループが見つかりませんでした');
+    }
+
+    // メッセージ（矢印とテキスト）を見つけてクリックイベントを追加
+    let messageGroups = [];
+
+    // パターン1: テキスト内容からメッセージを検索（最も確実）
+    const allTexts = svg.querySelectorAll('text');
+    const foundMessageGroups = [];
+    const usedMessages = new Set();
+
+    console.log('=== メッセージ検索開始 ===');
+    console.log('text要素総数:', allTexts.length);
+
+    allTexts.forEach((text, textIndex) => {
+        const content = text.textContent.trim();
+
+        // 参加者名は除外
+        const isParticipant = parsedElements.participants.some(p =>
+            content === p.name || content === p.id
+        );
+
+        if (!isParticipant && content) {
+            // メッセージテキストと一致するか確認
+            parsedElements.messages.forEach((msg, msgIndex) => {
+                if (content === msg.text && !usedMessages.has(msgIndex)) {
+                    console.log(`メッセージ発見 [${msgIndex}]: "${content}"`, msg);
+                    usedMessages.add(msgIndex);
+
+                    // text要素から親グループを探す
+                    let messageGroup = null;
+                    let currentParent = text.parentElement;
+
+                    // 方法1: 親階層を遡ってline/path要素を含むグループを探す
+                    for (let i = 0; i < 10 && currentParent && currentParent !== svg; i++) {
+                        if (currentParent.tagName.toLowerCase() === 'g') {
+                            const hasLine = currentParent.querySelector('line');
+                            const hasPath = currentParent.querySelector('path[d*="M"]');
+
+                            if (hasLine || hasPath) {
+                                messageGroup = currentParent;
+                                console.log(`  → 方法1: グループ発見（階層${i}）:`, messageGroup);
+                                break;
+                            }
+                        }
+                        currentParent = currentParent.parentElement;
+                    }
+
+                    // 方法2: 見つからない場合、text要素に最も近いg要素を使用
+                    if (!messageGroup) {
+                        currentParent = text.parentElement;
+                        while (currentParent && currentParent !== svg) {
+                            if (currentParent.tagName.toLowerCase() === 'g') {
+                                messageGroup = currentParent;
+                                console.log(`  → 方法2: 最も近いグループを使用:`, messageGroup);
+                                break;
+                            }
+                            currentParent = currentParent.parentElement;
+                        }
+                    }
+
+                    // 方法3: それでも見つからない場合、text要素自体の親の親を使用
+                    if (!messageGroup && text.parentElement && text.parentElement.parentElement) {
+                        messageGroup = text.parentElement.parentElement.tagName.toLowerCase() === 'g'
+                            ? text.parentElement.parentElement
+                            : text.parentElement;
+                        console.log(`  → 方法3: 親の親要素を使用:`, messageGroup);
+                    }
+
+                    if (messageGroup) {
+                        foundMessageGroups.push({ group: messageGroup, message: msg, index: msgIndex });
+                    } else {
+                        console.warn(`  → すべての方法で見つかりませんでした`);
+                    }
+                }
+            });
+        }
+    });
+
+    // メッセージのインデックス順にソート
+    foundMessageGroups.sort((a, b) => a.index - b.index);
+    messageGroups = foundMessageGroups.map(item => item.group);
+
+    console.log('見つかったメッセージグループ数:', messageGroups.length);
+
+    // パターン2: 見つからない場合はクラス名で検索
+    if (messageGroups.length === 0) {
+        messageGroups = svg.querySelectorAll('g.messageLine0, g.messageLine1');
+        console.log('g.messageLine0, g.messageLine1 で見つかった要素数:', messageGroups.length);
+    }
+
+    // パターン3: それでも見つからない場合はline要素の親グループ
+    if (messageGroups.length === 0) {
+        const lines = svg.querySelectorAll('line');
+        console.log('line要素数:', lines.length);
+        const uniqueGroups = new Set();
+        lines.forEach(line => {
+            let parent = line.parentElement;
+            if (parent && parent.tagName.toLowerCase() === 'g') {
+                uniqueGroups.add(parent);
+            }
+        });
+        messageGroups = Array.from(uniqueGroups);
+        console.log('line要素の親グループ数:', messageGroups.length);
+    }
+
+    // クリックイベントを追加
+    if (messageGroups.length > 0 || foundMessageGroups.length > 0) {
+        // foundMessageGroupsがある場合はそちらを優先（メッセージ情報が紐付いている）
+        if (foundMessageGroups.length > 0) {
+            foundMessageGroups.forEach((item, index) => {
+                console.log(`メッセージグループ ${index} にイベント追加:`, item.group, item.message);
+                item.group.classList.add('clickable-element');
+                item.group.style.cursor = 'pointer';
+
+                item.group.addEventListener('click', (e) => {
+                    console.log('メッセージがクリックされました:', item.message);
+                    e.stopPropagation();
+                    showEditMessagePanel(item.message);
+                });
+            });
+        } else {
+            // メッセージグループのみの場合（インデックスで対応付け）
+            messageGroups.forEach((group, index) => {
+                console.log(`メッセージグループ ${index} にイベント追加:`, group);
+                if (index < parsedElements.messages.length) {
+                    const message = parsedElements.messages[index];
+                    group.classList.add('clickable-element');
+                    group.style.cursor = 'pointer';
+
+                    group.addEventListener('click', (e) => {
+                        console.log('メッセージがクリックされました:', message);
+                        e.stopPropagation();
+                        showEditMessagePanel(message);
+                    });
+                }
+            });
+        }
+    } else {
+        console.warn('メッセージグループが見つかりませんでした');
+    }
+
+    console.log('=== イベント追加完了 ===');
 }
 
 // SVGをPNGに変換してダウンロード
@@ -283,6 +538,52 @@ function getExistingParticipants() {
     }
 
     return participants;
+}
+
+// Mermaidコードをパースして要素情報を抽出
+function parseMermaidCode() {
+    const code = mermaidCodeTextarea.value.trim();
+    const lines = code.split('\n');
+    const participants = [];
+    const messages = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // 参加者行のパース
+        if (line.startsWith('participant')) {
+            const match = line.match(/participant\s+(\S+)(?:\s+as\s+(.+))?/);
+            if (match) {
+                participants.push({
+                    type: 'participant',
+                    id: match[1],
+                    name: match[2] || match[1],
+                    lineIndex: i,
+                    originalId: match[1]
+                });
+            }
+        }
+
+        // メッセージ行のパース (様々な矢印タイプに対応)
+        const messageMatch = line.match(/(\S+)\s*(->|-->|->>|-->>)\s*(\S+):\s*(.+)/);
+        if (messageMatch) {
+            messages.push({
+                type: 'message',
+                from: messageMatch[1],
+                to: messageMatch[3],
+                arrowType: messageMatch[2],
+                text: messageMatch[4],
+                lineIndex: i
+            });
+        }
+    }
+
+    return { participants, messages };
+}
+
+// パース結果を更新
+function updateParsedElements() {
+    parsedElements = parseMermaidCode();
 }
 
 // 参加者追加処理
@@ -650,5 +951,239 @@ document.addEventListener('mouseup', () => {
 
 // ページ読み込み時に幅を復元
 restoreEditorWidth();
+
+// 編集パネル表示・非表示
+function showEditPanel() {
+    editPanel.style.display = 'flex';
+    setTimeout(() => {
+        editPanel.classList.add('show');
+    }, 10);
+}
+
+function hideEditPanel() {
+    editPanel.classList.remove('show');
+    setTimeout(() => {
+        editPanel.style.display = 'none';
+        currentEditingElement = null;
+        // 選択状態を解除
+        const selectedElements = diagramContainer.querySelectorAll('.selected-element');
+        selectedElements.forEach(el => el.classList.remove('selected-element'));
+    }, 300);
+}
+
+// 参加者編集パネルを表示
+function showEditParticipantPanel(participant) {
+    currentEditingElement = participant;
+
+    // フォームをリセット
+    editParticipantForm.style.display = 'block';
+    editMessageForm.style.display = 'none';
+
+    // タイトル設定
+    editPanelTitle.textContent = '参加者を編集';
+
+    // フォームに値をセット
+    editParticipantId.value = participant.id;
+    editParticipantName.value = participant.name;
+
+    // 選択状態を設定
+    highlightSelectedElement(participant);
+
+    showEditPanel();
+}
+
+// メッセージ編集パネルを表示
+function showEditMessagePanel(message) {
+    currentEditingElement = message;
+
+    // フォームをリセット
+    editParticipantForm.style.display = 'none';
+    editMessageForm.style.display = 'block';
+
+    // タイトル設定
+    editPanelTitle.textContent = 'メッセージを編集';
+
+    // 参加者のドロップダウンを更新
+    updateParticipantDropdowns();
+
+    // フォームに値をセット
+    editMessageFrom.value = message.from;
+    editMessageTo.value = message.to;
+    editMessageType.value = message.arrowType;
+    editMessageText.value = message.text;
+
+    // 選択状態を設定
+    highlightSelectedElement(message);
+
+    showEditPanel();
+}
+
+// 参加者のドロップダウンを更新
+function updateParticipantDropdowns() {
+    const fromOptions = '<option value="">選択してください</option>' +
+        parsedElements.participants.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    const toOptions = '<option value="">選択してください</option>' +
+        parsedElements.participants.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+    editMessageFrom.innerHTML = fromOptions;
+    editMessageTo.innerHTML = toOptions;
+}
+
+// 選択した要素をハイライト
+function highlightSelectedElement(element) {
+    // 既存の選択を解除
+    const selectedElements = diagramContainer.querySelectorAll('.selected-element');
+    selectedElements.forEach(el => el.classList.remove('selected-element'));
+
+    // 新しい要素を選択
+    const svg = diagramContainer.querySelector('svg');
+    if (!svg) return;
+
+    if (element.type === 'participant') {
+        const actorGroups = svg.querySelectorAll('g.actor');
+        const index = parsedElements.participants.indexOf(element);
+        if (index >= 0 && index < actorGroups.length) {
+            actorGroups[index].classList.add('selected-element');
+        }
+    } else if (element.type === 'message') {
+        const messageGroups = svg.querySelectorAll('g.messageLine0, g.messageLine1');
+        const index = parsedElements.messages.indexOf(element);
+        if (index >= 0 && index < messageGroups.length) {
+            messageGroups[index].classList.add('selected-element');
+        }
+    }
+}
+
+// 編集パネルを閉じるボタン
+editPanelClose.addEventListener('click', hideEditPanel);
+
+// 参加者の更新処理
+editParticipantUpdateBtn.addEventListener('click', () => {
+    if (!currentEditingElement || currentEditingElement.type !== 'participant') return;
+
+    const newId = editParticipantId.value.trim();
+    const newName = editParticipantName.value.trim();
+
+    if (!newId) {
+        updateStatus('IDを入力してください', 'error');
+        return;
+    }
+
+    const code = mermaidCodeTextarea.value;
+    const lines = code.split('\n');
+    const oldId = currentEditingElement.id;
+    const lineIndex = currentEditingElement.lineIndex;
+
+    // 参加者行を更新
+    lines[lineIndex] = `    participant ${newId} as ${newName || newId}`;
+
+    // IDが変更された場合、関連するメッセージも更新
+    if (oldId !== newId) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            // メッセージ行を検索して、送信元または送信先がoldIdの場合は更新
+            const messageMatch = line.match(/(\S+)\s*(->|-->|->>|-->>)\s*(\S+):\s*(.+)/);
+            if (messageMatch) {
+                let from = messageMatch[1];
+                let to = messageMatch[3];
+                const arrowType = messageMatch[2];
+                const text = messageMatch[4];
+
+                if (from === oldId) from = newId;
+                if (to === oldId) to = newId;
+
+                lines[i] = `    ${from}${arrowType}${to}: ${text}`;
+            }
+        }
+    }
+
+    mermaidCodeTextarea.value = lines.join('\n');
+    updateStatus('参加者を更新しました', 'success');
+    renderDiagram();
+    hideEditPanel();
+});
+
+// 参加者の削除処理
+editParticipantDeleteBtn.addEventListener('click', () => {
+    if (!currentEditingElement || currentEditingElement.type !== 'participant') return;
+
+    if (!confirm('この参加者を削除しますか？\n関連するメッセージも削除されます。')) {
+        return;
+    }
+
+    const code = mermaidCodeTextarea.value;
+    const lines = code.split('\n');
+    const participantId = currentEditingElement.id;
+    const lineIndex = currentEditingElement.lineIndex;
+
+    // 参加者行を削除
+    lines.splice(lineIndex, 1);
+
+    // 関連するメッセージも削除
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        const messageMatch = line.match(/(\S+)\s*(->|-->|->>|-->>)\s*(\S+):\s*(.+)/);
+        if (messageMatch) {
+            const from = messageMatch[1];
+            const to = messageMatch[3];
+            if (from === participantId || to === participantId) {
+                lines.splice(i, 1);
+            }
+        }
+    }
+
+    mermaidCodeTextarea.value = lines.join('\n');
+    updateStatus('参加者を削除しました', 'success');
+    renderDiagram();
+    hideEditPanel();
+});
+
+// メッセージの更新処理
+editMessageUpdateBtn.addEventListener('click', () => {
+    if (!currentEditingElement || currentEditingElement.type !== 'message') return;
+
+    const from = editMessageFrom.value.trim();
+    const to = editMessageTo.value.trim();
+    const arrowType = editMessageType.value;
+    const text = editMessageText.value.trim();
+
+    if (!from || !to || !text) {
+        updateStatus('すべての項目を入力してください', 'error');
+        return;
+    }
+
+    const code = mermaidCodeTextarea.value;
+    const lines = code.split('\n');
+    const lineIndex = currentEditingElement.lineIndex;
+
+    // メッセージ行を更新
+    lines[lineIndex] = `    ${from}${arrowType}${to}: ${text}`;
+
+    mermaidCodeTextarea.value = lines.join('\n');
+    updateStatus('メッセージを更新しました', 'success');
+    renderDiagram();
+    hideEditPanel();
+});
+
+// メッセージの削除処理
+editMessageDeleteBtn.addEventListener('click', () => {
+    if (!currentEditingElement || currentEditingElement.type !== 'message') return;
+
+    if (!confirm('このメッセージを削除しますか?')) {
+        return;
+    }
+
+    const code = mermaidCodeTextarea.value;
+    const lines = code.split('\n');
+    const lineIndex = currentEditingElement.lineIndex;
+
+    // メッセージ行を削除
+    lines.splice(lineIndex, 1);
+
+    mermaidCodeTextarea.value = lines.join('\n');
+    updateStatus('メッセージを削除しました', 'success');
+    renderDiagram();
+    hideEditPanel();
+});
 
 

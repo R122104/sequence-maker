@@ -114,6 +114,52 @@
         </div>
     </div>
 
+    <!-- 編集サイドパネル -->
+    <div id="edit-panel" class="edit-panel" style="display: none;">
+        <div class="edit-panel-header">
+            <h3 id="edit-panel-title">編集</h3>
+            <button id="edit-panel-close" class="close-btn">&times;</button>
+        </div>
+        <div class="edit-panel-content">
+            <!-- 参加者編集フォーム -->
+            <div id="edit-participant-form" class="edit-form" style="display: none;">
+                <label for="edit-participant-id">ID:</label>
+                <input type="text" id="edit-participant-id" placeholder="A">
+                <label for="edit-participant-name">表示名:</label>
+                <input type="text" id="edit-participant-name" placeholder="参加者A">
+                <div class="edit-form-buttons">
+                    <button id="edit-participant-update-btn" class="update-btn">登録</button>
+                    <button id="edit-participant-delete-btn" class="delete-btn">削除</button>
+                </div>
+            </div>
+
+            <!-- メッセージ編集フォーム -->
+            <div id="edit-message-form" class="edit-form" style="display: none;">
+                <label for="edit-message-from">送信元:</label>
+                <select id="edit-message-from">
+                    <option value="">選択してください</option>
+                </select>
+                <label for="edit-message-to">送信先:</label>
+                <select id="edit-message-to">
+                    <option value="">選択してください</option>
+                </select>
+                <label for="edit-message-type">矢印タイプ:</label>
+                <select id="edit-message-type">
+                    <option value="->>">->> (実線矢印)</option>
+                    <option value="-->>">-->> (破線矢印)</option>
+                    <option value="->">-> (実線)</option>
+                    <option value="-->">--> (破線)</option>
+                </select>
+                <label for="edit-message-text">メッセージ:</label>
+                <input type="text" id="edit-message-text" placeholder="Hello">
+                <div class="edit-form-buttons">
+                    <button id="edit-message-update-btn" class="update-btn">登録</button>
+                    <button id="edit-message-delete-btn" class="delete-btn">削除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
