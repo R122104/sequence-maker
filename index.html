@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid シーケンス図ジェネレーター</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Mermaid シーケンス図ジェネレーター</h1>
+    </header>
+
+    <main>
+        <div class="editor-panel">
+            <div class="panel-header">
+                <h2>エディタ</h2>
+            </div>
+            
+            <div class="drag-drop-area">
+                <p>Mermaidコードを含むファイルをドラッグ＆ドロップ</p>
+            </div>
+
+            <div class="palette-section">
+                <h3>図形パレット</h3>
+                <div class="palette">
+                    <div class="palette-item" data-type="participant" draggable="true">
+                        <span>👤</span>
+                        <span>参加者</span>
+                    </div>
+                    <div class="palette-item" data-type="message" draggable="true">
+                        <span>💬</span>
+                        <span>メッセージ</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-section">
+                <label for="mermaid-code">Mermaidコード:</label>
+                <textarea id="mermaid-code" placeholder="sequenceDiagram&#10;    participant A&#10;    participant B&#10;    A->>B: Hello"></textarea>
+            </div>
+
+            <div class="html-title-section">
+                <label for="html-download-title">HTMLタイトル:</label>
+                <input type="text" id="html-download-title" placeholder="シーケンス図" value="シーケンス図">
+            </div>
+
+            <div class="button-group">
+                <button id="render-btn">描画</button>
+                <button id="download-png-btn" disabled>PNGとしてダウンロード</button>
+                <button id="download-html-btn">HTMLとしてダウンロード</button>
+            </div>
+
+            <div class="status-message" id="status-message"></div>
+        </div>
+
+        <div class="preview-panel">
+            <div class="panel-header">
+                <h2>プレビュー</h2>
+            </div>
+            <div id="diagram-container"></div>
+        </div>
+    </main>
+
+    <!-- 参加者追加ダイアログ -->
+    <div id="participant-dialog" class="dialog" style="display: none;">
+        <div class="dialog-content">
+            <h3>参加者を追加</h3>
+            <label for="participant-id">ID:</label>
+            <input type="text" id="participant-id" placeholder="A">
+            <label for="participant-name">表示名:</label>
+            <input type="text" id="participant-name" placeholder="参加者A">
+            <div class="dialog-buttons">
+                <button id="participant-add-btn">追加</button>
+                <button id="participant-cancel-btn">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メッセージ追加ダイアログ -->
+    <div id="message-dialog" class="dialog" style="display: none;">
+        <div class="dialog-content">
+            <h3>メッセージを追加</h3>
+            <label for="message-from">送信元:</label>
+            <input type="text" id="message-from" placeholder="A">
+            <label for="message-to">送信先:</label>
+            <input type="text" id="message-to" placeholder="B">
+            <label for="message-type">矢印タイプ:</label>
+            <select id="message-type">
+                <option value="->>">->> (実線矢印)</option>
+                <option value="-->>">-->> (破線矢印)</option>
+                <option value="->">-> (実線)</option>
+                <option value="-->">--> (破線)</option>
+            </select>
+            <label for="message-text">メッセージ:</label>
+            <input type="text" id="message-text" placeholder="Hello">
+            <div class="dialog-buttons">
+                <button id="message-add-btn">追加</button>
+                <button id="message-cancel-btn">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
+
