@@ -19,6 +19,7 @@ const participantDialog = document.getElementById('participant-dialog');
 const messageDialog = document.getElementById('message-dialog');
 const participantIdInput = document.getElementById('participant-id');
 const participantNameInput = document.getElementById('participant-name');
+const participantPositionSelect = document.getElementById('participant-position');
 const participantAddBtn = document.getElementById('participant-add-btn');
 const participantCancelBtn = document.getElementById('participant-cancel-btn');
 const messageFromInput = document.getElementById('message-from');
@@ -263,41 +264,98 @@ function setupDragAndDrop() {
     });
 }
 
+// 既存の参加者リストを取得
+function getExistingParticipants() {
+    const code = mermaidCodeTextarea.value.trim();
+    const lines = code.split('\n');
+    const participants = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('participant')) {
+            const match = line.match(/participant\s+(\S+)(?:\s+as\s+(.+))?/);
+            if (match) {
+                const id = match[1];
+                const name = match[2] || id;
+                participants.push({ id, name, lineIndex: i });
+            }
+        }
+    }
+
+    return participants;
+}
+
 // 参加者追加処理
-function addParticipant(id, name) {
+function addParticipant(id, name, position) {
     const code = mermaidCodeTextarea.value.trim();
     const idValue = id.trim() || 'A';
     const nameValue = name.trim() || idValue;
-    
+
     let newCode = code;
-    
+
     // sequenceDiagramがなければ追加
     if (!code.includes('sequenceDiagram')) {
         newCode = 'sequenceDiagram\n';
     }
-    
+
     // 参加者行を追加
     const participantLine = `    participant ${idValue} as ${nameValue}`;
-    
+
     if (newCode === 'sequenceDiagram\n' || newCode === 'sequenceDiagram') {
         newCode += participantLine;
     } else {
-        // 最後のメッセージ行の後に追加
         const lines = newCode.split('\n');
         let insertIndex = lines.length;
-        
-        // participant行の後に挿入
-        for (let i = lines.length - 1; i >= 0; i--) {
-            if (lines[i].trim().startsWith('participant')) {
-                insertIndex = i + 1;
-                break;
+
+        // 挿入位置を決定
+        if (position === 'first') {
+            // 最初に追加（sequenceDiagramの直後）
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim() === 'sequenceDiagram') {
+                    insertIndex = i + 1;
+                    break;
+                }
+            }
+        } else if (position === 'last') {
+            // 最後に追加（最後のparticipant行の後）
+            for (let i = lines.length - 1; i >= 0; i--) {
+                if (lines[i].trim().startsWith('participant')) {
+                    insertIndex = i + 1;
+                    break;
+                }
+            }
+        } else if (position.startsWith('before-')) {
+            // 指定された参加者の前に追加
+            const targetId = position.replace('before-', '');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('participant')) {
+                    const match = line.match(/participant\s+(\S+)/);
+                    if (match && match[1] === targetId) {
+                        insertIndex = i;
+                        break;
+                    }
+                }
+            }
+        } else if (position.startsWith('after-')) {
+            // 指定された参加者の後に追加
+            const targetId = position.replace('after-', '');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('participant')) {
+                    const match = line.match(/participant\s+(\S+)/);
+                    if (match && match[1] === targetId) {
+                        insertIndex = i + 1;
+                        break;
+                    }
+                }
             }
         }
-        
+
         lines.splice(insertIndex, 0, participantLine);
         newCode = lines.join('\n');
     }
-    
+
     mermaidCodeTextarea.value = newCode;
     updateStatus(`参加者「${nameValue}」を追加しました`, 'success');
     renderDiagram();
@@ -333,6 +391,39 @@ function showParticipantDialog() {
     participantDialog.style.display = 'flex';
     participantIdInput.value = '';
     participantNameInput.value = '';
+
+    // 既存の参加者リストを取得して挿入位置の選択肢を更新
+    const participants = getExistingParticipants();
+    participantPositionSelect.innerHTML = '';
+
+    // 最初に追加オプション
+    const firstOption = document.createElement('option');
+    firstOption.value = 'first';
+    firstOption.textContent = '最初に追加';
+    participantPositionSelect.appendChild(firstOption);
+
+    // 各参加者の前後にオプションを追加
+    participants.forEach((participant, index) => {
+        // 「〜の前」オプション
+        const beforeOption = document.createElement('option');
+        beforeOption.value = `before-${participant.id}`;
+        beforeOption.textContent = `${participant.name} の前`;
+        participantPositionSelect.appendChild(beforeOption);
+
+        // 「〜の後」オプション
+        const afterOption = document.createElement('option');
+        afterOption.value = `after-${participant.id}`;
+        afterOption.textContent = `${participant.name} の後`;
+        participantPositionSelect.appendChild(afterOption);
+    });
+
+    // 最後に追加オプション
+    const lastOption = document.createElement('option');
+    lastOption.value = 'last';
+    lastOption.textContent = '最後に追加';
+    lastOption.selected = true;
+    participantPositionSelect.appendChild(lastOption);
+
     participantIdInput.focus();
 }
 
@@ -403,7 +494,8 @@ diagramContainer.addEventListener('drop', (e) => {
 participantAddBtn.addEventListener('click', () => {
     const id = participantIdInput.value.trim();
     const name = participantNameInput.value.trim();
-    addParticipant(id, name);
+    const position = participantPositionSelect.value;
+    addParticipant(id, name, position);
     hideParticipantDialog();
 });
 
