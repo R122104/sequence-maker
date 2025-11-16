@@ -130,24 +130,71 @@ function attachClickEventsToSvg() {
     // 参加者ボックスを見つけてクリックイベントを追加
     // 複数のセレクタを順番に試す
     let actorGroups = [];
+    let participantTexts = []; // パターン3で使用する参加者情報の配列
 
     // パターン1: g.actor
-    actorGroups = svg.querySelectorAll('g.actor');
-    console.log('g.actor で見つかった要素数:', actorGroups.length);
+    const actorGroupsNodeList = svg.querySelectorAll('g.actor');
+    console.log('g.actor で見つかった要素数:', actorGroupsNodeList.length);
+    if (actorGroupsNodeList.length > 0) {
+        // g.actor要素をX座標でソート
+        const actorItems = Array.from(actorGroupsNodeList).map(group => ({
+            group: group,
+            x: group.getBoundingClientRect().left
+        }));
+        actorItems.sort((a, b) => a.x - b.x);
+
+        // 参加者情報と紐付け
+        participantTexts = actorItems.map((item, index) => {
+            const participant = parsedElements.participants[index];
+            if (!participant) {
+                console.warn(`インデックス ${index} に対応する参加者が見つかりません`);
+            }
+            return {
+                group: item.group,
+                participant: participant,
+                element: item.group
+            };
+        }).filter(item => item.participant); // participantがundefinedの要素を除外
+
+        actorGroups = actorItems.map(item => item.group);
+        console.log('g.actorの要素数（ソート済み）:', actorGroups.length);
+    }
 
     // パターン2: rect.actor の親要素
     if (actorGroups.length === 0) {
         const actorRects = svg.querySelectorAll('rect.actor');
         console.log('rect.actor で見つかった要素数:', actorRects.length);
-        actorGroups = Array.from(actorRects).map(rect => rect.parentElement);
-        console.log('rect.actorの親要素数:', actorGroups.length);
+        if (actorRects.length > 0) {
+            // rect要素とその親をX座標でソート
+            const rectItems = Array.from(actorRects).map(rect => ({
+                rect: rect,
+                group: rect.parentElement,
+                x: rect.getBoundingClientRect().left
+            }));
+            rectItems.sort((a, b) => a.x - b.x);
+
+            // 参加者情報と紐付け
+            participantTexts = rectItems.map((item, index) => {
+                const participant = parsedElements.participants[index];
+                if (!participant) {
+                    console.warn(`インデックス ${index} に対応する参加者が見つかりません`);
+                }
+                return {
+                    group: item.group,
+                    participant: participant,
+                    element: item.rect
+                };
+            }).filter(item => item.participant); // participantがundefinedの要素を除外
+
+            actorGroups = rectItems.map(item => item.group);
+            console.log('rect.actorの親要素数（ソート済み）:', actorGroups.length);
+        }
     }
 
     // パターン3: text要素のtspan内容から参加者名を検索
     if (actorGroups.length === 0) {
         const allTexts = svg.querySelectorAll('text');
         console.log('text要素数:', allTexts.length);
-        const participantTexts = [];
         allTexts.forEach(text => {
             const content = text.textContent.trim();
             console.log('text内容:', content);
@@ -163,32 +210,59 @@ function attachClickEventsToSvg() {
                     parent = parent.parentElement;
                 }
                 if (parent && parent.tagName.toLowerCase() === 'g') {
-                    participantTexts.push(parent);
+                    // グループと参加者情報を一緒に保存
+                    participantTexts.push({ group: parent, participant: matchingParticipant, text: text });
                 }
             }
         });
         if (participantTexts.length > 0) {
-            actorGroups = participantTexts;
+            // X座標でソート（参加者は通常横並び）
+            participantTexts.sort((a, b) => {
+                const rectA = a.text.getBoundingClientRect();
+                const rectB = b.text.getBoundingClientRect();
+                return rectA.left - rectB.left;
+            });
+            console.log('ソート後の参加者グループ数:', participantTexts.length);
+            participantTexts.forEach((item, idx) => {
+                console.log(`  [${idx}] ${item.participant.id} (X: ${item.text.getBoundingClientRect().left})`);
+            });
+            actorGroups = participantTexts.map(item => item.group);
             console.log('テキストから見つかった参加者グループ数:', actorGroups.length);
         }
     }
 
     // クリックイベントを追加
     if (actorGroups.length > 0) {
-        actorGroups.forEach((group, index) => {
-            console.log(`参加者グループ ${index} にイベント追加:`, group);
-            if (index < parsedElements.participants.length) {
-                const participant = parsedElements.participants[index];
-                group.classList.add('clickable-element');
-                group.style.cursor = 'pointer';
+        // パターン3で見つかった場合、participantTextsに参加者情報が含まれている
+        if (participantTexts && participantTexts.length > 0) {
+            participantTexts.forEach((item, index) => {
+                console.log(`参加者グループ ${index} にイベント追加:`, item.group, item.participant);
+                item.group.classList.add('clickable-element');
+                item.group.style.cursor = 'pointer';
 
-                group.addEventListener('click', (e) => {
-                    console.log('参加者がクリックされました:', participant);
+                item.group.addEventListener('click', (e) => {
+                    console.log('参加者がクリックされました:', item.participant);
                     e.stopPropagation();
-                    showEditParticipantPanel(participant);
+                    showEditParticipantPanel(item.participant);
                 });
-            }
-        });
+            });
+        } else {
+            // パターン1,2の場合はインデックスで対応付け
+            actorGroups.forEach((group, index) => {
+                console.log(`参加者グループ ${index} にイベント追加:`, group);
+                if (index < parsedElements.participants.length) {
+                    const participant = parsedElements.participants[index];
+                    group.classList.add('clickable-element');
+                    group.style.cursor = 'pointer';
+
+                    group.addEventListener('click', (e) => {
+                        console.log('参加者がクリックされました:', participant);
+                        e.stopPropagation();
+                        showEditParticipantPanel(participant);
+                    });
+                }
+            });
+        }
     } else {
         console.warn('参加者グループが見つかりませんでした');
     }
@@ -546,6 +620,7 @@ function parseMermaidCode() {
     const lines = code.split('\n');
     const participants = [];
     const messages = [];
+    const participantIds = new Set(); // 重複チェック用
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -561,22 +636,51 @@ function parseMermaidCode() {
                     lineIndex: i,
                     originalId: match[1]
                 });
+                participantIds.add(match[1]);
             }
         }
 
         // メッセージ行のパース (様々な矢印タイプに対応)
         const messageMatch = line.match(/(\S+)\s*(->|-->|->>|-->>)\s*(\S+):\s*(.+)/);
         if (messageMatch) {
+            const from = messageMatch[1];
+            const to = messageMatch[3];
+
+            // メッセージから暗黙的な参加者を検出（participant宣言がない場合）
+            if (!participantIds.has(from)) {
+                participants.push({
+                    type: 'participant',
+                    id: from,
+                    name: from,
+                    lineIndex: -1, // 暗黙的な参加者
+                    originalId: from
+                });
+                participantIds.add(from);
+            }
+            if (!participantIds.has(to)) {
+                participants.push({
+                    type: 'participant',
+                    id: to,
+                    name: to,
+                    lineIndex: -1, // 暗黙的な参加者
+                    originalId: to
+                });
+                participantIds.add(to);
+            }
+
             messages.push({
                 type: 'message',
-                from: messageMatch[1],
-                to: messageMatch[3],
+                from: from,
+                to: to,
                 arrowType: messageMatch[2],
                 text: messageMatch[4],
                 lineIndex: i
             });
         }
     }
+
+    console.log('パース結果 - 参加者数:', participants.length, participants);
+    console.log('パース結果 - メッセージ数:', messages.length, messages);
 
     return { participants, messages };
 }
