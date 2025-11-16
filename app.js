@@ -494,4 +494,69 @@ const sampleCode = `sequenceDiagram
 mermaidCodeTextarea.value = sampleCode;
 renderDiagram();
 
+// リサイズ機能
+const resizeHandle = document.getElementById('resize-handle');
+let isResizing = false;
+let startX = 0;
+let startWidth = 0;
+
+// localStorageから保存された幅を復元
+function restoreEditorWidth() {
+    const savedWidth = localStorage.getItem('editorWidth');
+    if (savedWidth) {
+        const width = parseInt(savedWidth, 10);
+        if (width >= 300 && width <= window.innerWidth * 0.8) {
+            editorPanel.style.width = width + 'px';
+        }
+    }
+}
+
+// 幅をlocalStorageに保存
+function saveEditorWidth(width) {
+    localStorage.setItem('editorWidth', width.toString());
+}
+
+// マウスダウンイベント - リサイズ開始
+resizeHandle.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = editorPanel.offsetWidth;
+    resizeHandle.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+// マウスムーブイベント - リサイズ中
+document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    const deltaX = e.clientX - startX;
+    const newWidth = startWidth + deltaX;
+
+    // 最小幅と最大幅の制限
+    const minWidth = 300;
+    const maxWidth = window.innerWidth * 0.8;
+
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+        editorPanel.style.width = newWidth + 'px';
+    }
+});
+
+// マウスアップイベント - リサイズ終了
+document.addEventListener('mouseup', () => {
+    if (isResizing) {
+        isResizing = false;
+        resizeHandle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // 幅を保存
+        saveEditorWidth(editorPanel.offsetWidth);
+    }
+});
+
+// ページ読み込み時に幅を復元
+restoreEditorWidth();
+
 

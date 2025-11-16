@@ -48,11 +48,11 @@ header h1 {
 
 main {
     display: flex;
-    gap: 1rem;
+    gap: 0;
     padding: 1rem;
     max-width: 1600px;
     margin: 0 auto;
-    transition: gap 0.3s ease;
+    height: calc(100vh - 120px);
 }
 
 main.editor-hidden {
@@ -65,12 +65,19 @@ main.editor-hidden {
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     padding: 1.5rem;
-    flex: 1;
+    overflow: auto;
 }
 
 .editor-panel {
-    transition: transform 0.3s ease, opacity 0.3s ease, width 0.3s ease, padding 0.3s ease, margin 0.3s ease;
-    overflow: hidden;
+    width: 600px;
+    min-width: 300px;
+    max-width: 80%;
+    transition: transform 0.3s ease, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+}
+
+.preview-panel {
+    flex: 1;
+    min-width: 0;
 }
 
 .editor-panel.hidden {
@@ -81,6 +88,10 @@ main.editor-hidden {
     margin: 0;
     flex: 0;
     min-width: 0;
+}
+
+main.editor-hidden .resize-handle {
+    display: none;
 }
 
 .panel-header {
@@ -325,10 +336,56 @@ button:disabled {
     background-color: #7f8c8d;
 }
 
+/* リサイズハンドル */
+.resize-handle {
+    width: 8px;
+    cursor: col-resize;
+    background-color: transparent;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+    user-select: none;
+}
+
+.resize-handle:hover {
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
+.resize-handle.resizing {
+    background-color: rgba(52, 152, 219, 0.2);
+}
+
+.resize-handle-bar {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 40px;
+    background-color: #bdc3c7;
+    border-radius: 2px;
+    transition: background-color 0.2s ease;
+}
+
+.resize-handle:hover .resize-handle-bar,
+.resize-handle.resizing .resize-handle-bar {
+    background-color: #3498db;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 720px) {
     main {
         flex-direction: column;
+        height: auto;
+    }
+
+    .resize-handle {
+        display: none;
+    }
+
+    .editor-panel {
+        width: 100%;
+        max-width: 100%;
     }
 
     header {
